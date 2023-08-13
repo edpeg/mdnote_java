@@ -26,6 +26,7 @@ public enum ResultStatus implements IResultStatus {
     // 11xx 笔记业务逻辑错误
     NOTE_SAVE_FAIL(1101, "笔记保存失败"),
     NOTE_ID_NOT_EXIST(1102, "笔记不存在"),
+    CLIENT_REQUEST_PARAMETERS_ILLEGAL(1103,"客户端请求参数非法"),
 
     // 12xx 文件上传失败
     FILE_CONTENT_EMPTY(1200, "文件为空，上传失败"),
@@ -55,6 +56,7 @@ public enum ResultStatus implements IResultStatus {
     // 104xx 客户端请求错误
     CLIENT_IP_NOT_ALLOWED(10403, "禁止访问此接口"),
     CLIENT_REQUEST_ENTITY_TOO_LARGE(10413, "客户端请求体超限"),
+
 
     // 105XX 服务器异常状态
     SERVER_INTERNAL_ERROR(10500, "内部服务器错误"),

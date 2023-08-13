@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 import org.springframework.web.util.WebUtils;
@@ -94,7 +95,12 @@ public class ResponseResultBodyAdvice implements ResponseBodyAdvice<Object> {
         log.error("业务异常信息: {}", ex);
         return this.handleResultException(ex, request);
     }
-
+    // 数据类型转换异常
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public final ResponseEntity<Result<?>> NumberFormatException(MethodArgumentTypeMismatchException ex, WebRequest request) {
+        log.error("业务异常信息,接口数据类型转换异常: {}", ex);
+        return this.handleResultException(new ResultException(ResultStatus.CLIENT_REQUEST_PARAMETERS_ILLEGAL), request);
+    }
     // 兜底的异常处理，出现这种异常说明代码有bug需要修复，或者需要添加对应的excpetionHandler
     @ExceptionHandler(Exception.class)
     public final ResponseEntity<Result<?>> exceptionHandler(Exception ex, WebRequest request) {

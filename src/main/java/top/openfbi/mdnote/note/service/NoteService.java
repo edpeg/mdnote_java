@@ -146,7 +146,7 @@ public class NoteService {
         //构造条件
         wrapper.eq("user_id", userId);
         wrapper.last("limit 100");
-        wrapper.orderByDesc("create_time");
+        wrapper.orderByDesc("update_time");
         //使用提供的selectList默认方法进行结果查询
         List<Note> list = noteDao.selectList(wrapper);
         return list;
