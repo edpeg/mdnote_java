@@ -4,7 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.serializer.RedisSerializer;
-import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
+import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisIndexedHttpSession;
 
 @Configuration()
 /**
@@ -13,8 +13,9 @@ import org.springframework.session.data.redis.config.annotation.web.http.EnableR
  * 配置sessiopn在Redis中的名称前缀
  * 配置session生命周期为一个月
  */
-@EnableRedisHttpSession(redisNamespace = "userSession", maxInactiveIntervalInSeconds = 30 * 24 * 60 * 60)
+@EnableRedisIndexedHttpSession(redisNamespace = "userSession", maxInactiveIntervalInSeconds = 30 * 24 * 60 * 60)
 public class RedisHttpSessionConfig {
+
     @Bean
     public RedisSerializer springSessionDefaultRedisSerializer() {
         return RedisSerializer.json();
@@ -24,4 +25,6 @@ public class RedisHttpSessionConfig {
     public LettuceConnectionFactory redisConnectionFactory() {
         return new LettuceConnectionFactory();
     }
+
+
 }

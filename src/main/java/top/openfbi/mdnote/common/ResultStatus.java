@@ -16,17 +16,21 @@ public enum ResultStatus implements IResultStatus {
     // 10xx  用户业务逻辑错误
     USER_NOT_LOGIN(1000, "用户未登录"),
     USER_NAME_ILLEGAL(1001, "用户名非法"),
-    USER_ID_NOT_EXIST(1002, "用户ID不存在"),
+    USER_ID_NOT_EXIST(1002, "用户名不存在"),
     USER_PASSWORD_LENGTH_ILLEGAL(1003, "密码长度非法"),
     USER_NAME_PRESENCE(1004, "用户名已存在"),
     USER_LOGGEN_IN(1005, "用户已登录"),
     USER_NO_PERMISSION(1006, "用户无权限查看此笔记"),
     USER_PASSWORD_FAIL(1007, "账户密码错误"),
+    DEMO_ACCOUNT_FORBID_LOGOFF(1008, "Demo账户禁止注销"),
 
     // 11xx 笔记业务逻辑错误
     NOTE_SAVE_FAIL(1101, "笔记保存失败"),
     NOTE_ID_NOT_EXIST(1102, "笔记不存在"),
     CLIENT_REQUEST_PARAMETERS_ILLEGAL(1103,"客户端请求参数非法"),
+    NOTE_NO_OPEN(1104,"该笔记未公开"),
+    DEMO_ACCOUNT_NOTE_FORBID_LOGOFF(1105,"Demo账户笔记禁止删除"),
+
 
     // 12xx 文件上传失败
     FILE_CONTENT_EMPTY(1200, "文件为空，上传失败"),
@@ -63,7 +67,10 @@ public enum ResultStatus implements IResultStatus {
     SERVER_MAINTENANCE(10550, "系统维护中，暂停服务"),
 
     // 106xx 网络接口错误
+    WEBSOCKET_CLOSE_FAIL(10600,"WebSocket关闭连接失败"),
 
+    //107xx  AI功能调用状态
+    AI_EXEC_FAIL(10700, "AI功能调用失败"),
     // 未知错误
     UNKNOWN(99999, "未知错误");
 

@@ -46,7 +46,8 @@ public class PassportController {
     // 登录账户
     @PostMapping(value = "/login")
     public LoginResponse login(@RequestBody User user) throws ResultException {
-        return new LoginResponse(userService.login(user));
+        LoginResponse loginResponse = new LoginResponse(userService.login(user));
+        return loginResponse;
 
     }
 

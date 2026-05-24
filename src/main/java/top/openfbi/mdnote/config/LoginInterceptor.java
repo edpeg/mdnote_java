@@ -1,11 +1,13 @@
 package top.openfbi.mdnote.config;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import top.openfbi.mdnote.common.Result;
@@ -13,7 +15,6 @@ import top.openfbi.mdnote.common.ResultStatus;
 import top.openfbi.mdnote.user.model.UserSession;
 import top.openfbi.mdnote.user.util.Session;
 import top.openfbi.mdnote.utils.JsonResponse;
-
 /**
  * 用户登录拦截
  * 用户请求接口后会在此判断用户是否已登录，登录放行，未登录拦截请求，返回未登录状态码
@@ -44,7 +45,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         // 判断请求是否携带session。判断session是否在系统中保存
         if (httpSession != null && new Session(httpSession).getUser() != null) {
             // 表示已经登录
-            UserSession user = (UserSession) httpSession.getAttribute("user");
+            UserSession user = JSONObject.parseObject((String) httpSession.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME),UserSession.class);
             logger.info("用户已登录,用户名: {}，用户ID: {}", user.getUserName(), user.getId());
             return true;
         }

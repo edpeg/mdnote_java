@@ -9,5 +9,5 @@ public class EsNoteResult {
 
     private List<SimpleNote> noteList;
 
-    private Long totalRecords;
+    private int totalRecords;
 }

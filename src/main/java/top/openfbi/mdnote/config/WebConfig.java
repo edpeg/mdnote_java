@@ -13,7 +13,10 @@ import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.servlet.config.annotation.*;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableWebMvc
@@ -32,7 +35,6 @@ public class WebConfig implements WebMvcConfigurer {
     private static final Logger logger = LoggerFactory.getLogger(WebConfig.class);
 
     static String API_PREFIX = "/api";
-
 
 //    // 跨域问题
 //    @Override
@@ -84,6 +86,7 @@ public class WebConfig implements WebMvcConfigurer {
                 // 放行指定URL
                         excludePathPatterns("/api/passport/login").
                 excludePathPatterns("/api/passport/register").
+                excludePathPatterns("/api/note/open").
                 addPathPatterns("/**");    // 拦截其余 url
     }
 
@@ -106,7 +109,7 @@ public class WebConfig implements WebMvcConfigurer {
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
         // 设置cookie名称
-        serializer.setCookieName("session_id");
+        serializer.setCookieName("openfbi.top_session");
         //路径
         serializer.setCookiePath("/");
         //有效时间
@@ -117,6 +120,8 @@ public class WebConfig implements WebMvcConfigurer {
         serializer.setUseHttpOnlyCookie(true);
         return serializer;
     }
+
+
 }
 
 

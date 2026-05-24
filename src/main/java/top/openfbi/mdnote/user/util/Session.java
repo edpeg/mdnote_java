@@ -1,6 +1,11 @@
 package top.openfbi.mdnote.user.util;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import top.openfbi.mdnote.config.ResponseResultBody;
 import top.openfbi.mdnote.user.model.UserSession;
 
@@ -9,11 +14,11 @@ import top.openfbi.mdnote.user.model.UserSession;
  */
 @ResponseResultBody
 public class Session {
-    // session保存在Redis中的key
-    static String USER_SESSION_KEY = "user";
 
     private HttpSession httpSession;
 
+    private static final Logger logger
+            = LoggerFactory.getLogger(Session.class);
     /**
      * 获取用户Session
      */
@@ -34,21 +39,28 @@ public class Session {
      * session的key为USER_SESSION_KEY
      */
     public static void setUser(UserSession userSession) {
-        new Session().httpSession.setAttribute(USER_SESSION_KEY, userSession);
+
+        Session session = new Session();
+//        session.httpSession.setAttribute(userSession.getUserName(), userSession);
+        session.httpSession.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, JSON.toJSONString(userSession));
+        logger.debug("{}用户登录",userSession.getUserName());
     }
 
     /**
      * 获取当前登录用户信息
      */
     public static UserSession getUser() {
-        //根据当前链接cookie中保存的sessionId和USER_SESSION_KEY获取当前连接的用户信息
-        return (UserSession) new Session().httpSession.getAttribute(USER_SESSION_KEY);
+        //根据当前链接在spingsession中对应的name名称获取当前连接的用户信息
+        Session session = new Session();
+        UserSession userSession = JSONObject.parseObject((String) session.httpSession.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME),UserSession.class);
+        return userSession;
     }
 
     /**
-     * 删除Session，退出登录状态
+     * 删除当前连接Session，退出登录状态
      */
     public void invalidate() {
         httpSession.invalidate();
     }
+
 }

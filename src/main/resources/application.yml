@@ -1,5 +1,8 @@
 server:
   port: 8081
+  servlet:
+    session:
+      persistent: true
 spring:
   profiles:
     active: @activatedYml@
@@ -16,13 +19,16 @@ spring:
           max-wait: -1ms
           max-idle: 8
           min-idle: 0
+  session:
+    redis:
+      repository-type: indexed
 
 # 使用哪个配置上传文件
 # 0：七牛云上传  1：本地上传
 file-upload:
   single-file-size: 20
   total-file-size: 40
-  picturebed: 1
+  picturebed: 0
 
 # Session配置
 session:

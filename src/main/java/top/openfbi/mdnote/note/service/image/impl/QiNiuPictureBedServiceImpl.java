@@ -34,7 +34,7 @@ public class QiNiuPictureBedServiceImpl implements PictureBedInterface {
     // 设置上传空间名
     private String bucket;
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
-    static String URL_PREFIX = "http://rw34jwhy2.bkt.gdipper.com/";
+    static String URL_PREFIX = "http://taukc4pwe.hn-bkt.clouddn.com/";
 
     @Value(value = "${qiniu-store.access-key}")
     public void setAccessKey(String accessKey) {
@@ -70,7 +70,7 @@ public class QiNiuPictureBedServiceImpl implements PictureBedInterface {
         }
 
         // 设置上传大区地址(北美)
-        Configuration cfg = new Configuration(Region.beimei());
+        Configuration cfg = new Configuration(Region.huanan());
         // 创建上传类
         UploadManager uploadManager = new UploadManager(cfg);
         // 设置上传秘钥
@@ -86,6 +86,7 @@ public class QiNiuPictureBedServiceImpl implements PictureBedInterface {
             putRet = JSON.parseObject(response.bodyString(), DefaultPutRet.class);
         } catch (QiniuException qiniuException) {
             logger.error("七牛云图片上传失败");
+            logger.error(qiniuException.getMessage());
             throw new ResultException(ResultStatus.QI_NIU_FILE_UPLOAD_FALL);
         }
 

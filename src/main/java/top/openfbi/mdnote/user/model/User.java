@@ -30,4 +30,22 @@ public class User /* implements Serializable */  {
      */
     @TableField("password")
     private String password;
+
+    /**
+     * 用户注册时间
+     */
+    @TableField("regist_time")
+    private String registTime;
+
+    /**
+     * 用户最近一次登录时间
+     */
+    @TableField("last_login_time")
+    private String lastLoginTime;
+
+    /**
+     * 用户状态：
+     */
+    @TableField("status")
+    private int status;
 }

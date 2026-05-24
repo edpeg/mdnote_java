@@ -13,7 +13,7 @@
 1. 创建MySQL数据库`mdnote`,导入表结构 `sql/mdnote.sql`
 2. 替换application-profile-template.yml里的mysql、redis、es、七牛云等配置参数
 3. maven编译运行 `mvn spring-boot:run`
-
+[nginx.conf](..%2F..%2F..%2Fnginx%2Fnginx-1.24.0%2Fconf%2Fnginx.conf)
 ## 系统设计
 
 ### 依赖服务

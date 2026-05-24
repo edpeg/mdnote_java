@@ -54,9 +54,14 @@ public class Note implements Serializable {
     private String updateTime;
 
     /**
-     * 是否删除(0 不删除，1 删除)
+     * 笔记状态： 第二位为1：公开笔记,为0: 不公开笔记
      */
     @TableField("status")
     private int status;
 
+    /**
+     * 笔记总结
+     */
+    @TableField("summary")
+    private String summary;
 }
