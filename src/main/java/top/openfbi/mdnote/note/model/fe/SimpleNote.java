@@ -44,4 +44,9 @@ public class SimpleNote {
      * 笔记总结
      */
     private String summary;
+
+    /**
+     * 相关度百分比 (0-100)
+     */
+    private Integer relevance;
 }

@@ -44,7 +44,7 @@ public class User /* implements Serializable */  {
     private String lastLoginTime;
 
     /**
-     * 用户状态：
+     * 用户状态： 1 已注销
      */
     @TableField("status")
     private int status;

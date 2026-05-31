@@ -40,6 +40,9 @@ public class ResponseResultBodyAdvice implements ResponseBodyAdvice<Object> {
      */
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
+        if (org.springframework.web.servlet.mvc.method.annotation.SseEmitter.class.isAssignableFrom(returnType.getParameterType())) {
+            return false;
+        }
         return AnnotatedElementUtils.hasAnnotation(returnType.getContainingClass(), ANNOTATION_TYPE) || returnType.hasMethodAnnotation(ANNOTATION_TYPE);
     }
 

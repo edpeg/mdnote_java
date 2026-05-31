@@ -71,6 +71,7 @@ public enum ResultStatus implements IResultStatus {
 
     //107xx  AI功能调用状态
     AI_EXEC_FAIL(10700, "AI功能调用失败"),
+    AI_TOKEN_EXHAUSTED(10701, "今日Token已耗尽，请明天再试"),
     // 未知错误
     UNKNOWN(99999, "未知错误");
 

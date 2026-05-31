@@ -14,8 +14,12 @@ import top.openfbi.mdnote.config.ResponseResultBody;
 import top.openfbi.mdnote.note.service.NoteService;
 import top.openfbi.mdnote.user.dao.LogoffUserDao;
 import top.openfbi.mdnote.user.dao.UserDao;
+import top.openfbi.mdnote.user.dao.TokensDao;
+import top.openfbi.mdnote.user.dao.UserTokenUsageDao;
 import top.openfbi.mdnote.user.model.LogoffUser;
 import top.openfbi.mdnote.user.model.User;
+import top.openfbi.mdnote.user.model.Tokens;
+import top.openfbi.mdnote.user.model.UserTokenUsage;
 import top.openfbi.mdnote.user.model.UserSession;
 import top.openfbi.mdnote.user.util.Session;
 import top.openfbi.mdnote.utils.IntBytOperate;
@@ -32,6 +36,10 @@ public class UserService {
     private UserDao userDao;
     @Autowired
     private LogoffUserDao logoffUserDao;
+    @Autowired
+    private UserTokenUsageDao userTokenUsageDao;
+    @Autowired
+    private TokensDao tokensDao;
 
     @Autowired
     FindByIndexNameSessionRepository sessionRepository;
@@ -120,6 +128,17 @@ public class UserService {
         user.setRegistTime(Time.current());
         user.setLastLoginTime(Time.current());
         userDao.insert(user);
+        
+        // 为新用户初始化当天的 Token 使用记录
+        Tokens globalConfig = tokensDao.selectById(1);
+        long currentLimit = (globalConfig != null && globalConfig.getDailyLimit() != null) ? globalConfig.getDailyLimit() : 10000000L;
+        UserTokenUsage usage = new UserTokenUsage();
+        usage.setUserId(String.valueOf(user.getId()));
+        usage.setDate(java.time.LocalDate.now());
+        usage.setTokensUsed(0L);
+        usage.setDailyLimit(currentLimit);
+        userTokenUsageDao.insert(usage);
+
         // 登录创建好的对象
         // 设置用户登录Session
         Session.setUser(new UserSession(user));

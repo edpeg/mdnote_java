@@ -12,6 +12,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import top.openfbi.mdnote.user.service.UserTokenUsageService;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -40,6 +41,10 @@ import java.util.regex.Pattern;
  */
 @Service
 public class NoteService {
+
+    @Autowired
+    private UserTokenUsageService userTokenUsageService;
+
     @Autowired
     private NoteSearchService noteSearchService;
     @Autowired
@@ -83,6 +88,15 @@ public class NoteService {
         }
         // 保存es
         saveToES(note);
+
+        // 异步向量化笔记
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                this.vectorize(note.getId(), note.getUserId());
+            } catch (Exception e) {
+                logger.error("异步向量化笔记失败: {}", e.getMessage());
+            }
+        });
 
         return note.getId();
     }
@@ -134,6 +148,15 @@ public class NoteService {
         }
         deleteNoteDao.insert(deleteNote);
         noteSearchService.delete(note.getId());
+
+        // 异步删除向量笔记
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                this.deleteVector(id, userId);
+            } catch (Exception e) {
+                logger.error("异步删除向量化笔记失败: {}", e.getMessage());
+            }
+        });
     }
 
     /**
@@ -249,6 +272,14 @@ public class NoteService {
 
     private List<SimpleNote> completeNoteHighlightField(List<SearchHit<ElasticSearchNote>> elasticSearchNoteList, Map<Long, Note> noteMap) {
         List<SimpleNote> frontEndNoteList = new LinkedList<>();
+        if (elasticSearchNoteList.isEmpty()) {
+            return frontEndNoteList;
+        }
+        
+        // ES默认按score降序排列，取第一个元素的score作为maxScore来计算百分比
+        double maxScore = elasticSearchNoteList.get(0).getScore();
+        if (maxScore == 0) maxScore = 1.0;
+
         // 循环处理笔记信息
         for (int i = 0; i < elasticSearchNoteList.size(); i++) {
             SearchHit<ElasticSearchNote> searchHit = elasticSearchNoteList.get(i);
@@ -260,6 +291,14 @@ public class NoteService {
             }
             SimpleNote simpleNote = new SimpleNote();
             simpleNote.setId(searchHit.getContent().getId());
+            
+            // 计算相关度百分比
+            double score = searchHit.getScore();
+            int relevance = (int) Math.round((score / maxScore) * 100);
+            // 确保不大于100或小于1
+            if (relevance > 100) relevance = 100;
+            if (relevance < 1) relevance = 1;
+            simpleNote.setRelevance(relevance);
 
             // 判断是否查询到高亮内容
             Map<String, List<String>> highlightFieldsMap = searchHit.getHighlightFields();
@@ -277,6 +316,10 @@ public class NoteService {
 
             frontEndNoteList.add(simpleNote);
         }
+        
+        // 按相关度从高到低排序 (防万一ES没排好)
+        frontEndNoteList.sort((a, b) -> Integer.compare(b.getRelevance() != null ? b.getRelevance() : 0, a.getRelevance() != null ? a.getRelevance() : 0));
+        
         return frontEndNoteList;
     }
 
@@ -331,6 +374,16 @@ public class NoteService {
     }
 
 
+    private void checkPythonResponseCode(JsonNode rootNode) throws ResultException {
+        if (rootNode.has("code") && rootNode.get("code").asInt() != 0) {
+            int code = rootNode.get("code").asInt();
+            if (code == 10413) {
+                throw new ResultException(ResultStatus.CLIENT_REQUEST_ENTITY_TOO_LARGE);
+            }
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
+        }
+    }
+
     /**
      * 美化笔记
      */
@@ -362,6 +415,8 @@ public class NoteService {
 
         String beautify = null;
         // 调用外部API获取笔记摘要并打印
+        // 1. 发起请求前，首先进行额度校验，如果额度不够会自动抛出异常拦截
+        userTokenUsageService.checkTokenLimit(userId);
         try {
             RestTemplate restTemplate = new RestTemplate();
             String url = "http://127.0.0.1:8083/api/note/beautify?id="+note.getId();
@@ -370,11 +425,19 @@ public class NoteService {
             // 解析JSON响应
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(response);
+            checkPythonResponseCode(rootNode);
             beautify = rootNode.get("beautify").asText();
+            
+            // 2. 如果 Python 端正常处理完并返回了使用的 token 数，则记录到数据库
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
 
             // 打印摘要到控制台
 //            System.out.println("笔记摘要: " + beautify);
             note.setContent(beautify);
+        } catch (ResultException e) {
+            throw e;
         } catch (Exception e) {
             throw new ResultException(ResultStatus.AI_EXEC_FAIL);
         }
@@ -427,6 +490,7 @@ public class NoteService {
 
         String summary = null;
         // 调用外部API获取笔记摘要并打印
+        userTokenUsageService.checkTokenLimit(userId);
         try {
             RestTemplate restTemplate = new RestTemplate();
             String url = "http://127.0.0.1:8083/api/note/summary?id="+note.getId();
@@ -435,13 +499,20 @@ public class NoteService {
             // 解析JSON响应
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(response);
+            checkPythonResponseCode(rootNode);
             summary = rootNode.get("summary").asText();
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
 
             // 打印摘要到控制台
 //            System.out.println("笔记摘要: " + summary);
             note.setSummary(summary);
+        } catch (ResultException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("调用外部API获取笔记摘要失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
         }
         if (summary != null){
             QueryWrapper<Note> wrapper = new QueryWrapper<>();
@@ -460,9 +531,10 @@ public class NoteService {
     /**
      * 美化内容
      */
-    public String polish(String noteContent) throws ResultException {
+    public String polish(String noteContent, Long userId) throws ResultException {
         String polish = null;
         // 调用外部API获取笔记摘要并打印
+        userTokenUsageService.checkTokenLimit(userId);
         try {
             RestTemplate restTemplate = new RestTemplate();
             String url = "http://127.0.0.1:8083/api/note/polish";
@@ -474,6 +546,9 @@ public class NoteService {
             // 创建form-data请求参数
             MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
             requestBody.add("noteContent", noteContent);
+            if (userId != null) {
+                requestBody.add("userId", String.valueOf(userId));
+            }
 
             // 创建HTTP实体
             HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(requestBody, headers);
@@ -484,11 +559,135 @@ public class NoteService {
             // 解析JSON响应
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(response);
-            polish = rootNode.get("polished_content").asText();
+            checkPythonResponseCode(rootNode);
+            polish = rootNode.get("polish_content").asText();
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
+        } catch (ResultException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("调用外部API获取笔记摘要失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
         }
         return polish;
+    }
+
+    /**
+     * 续写内容
+     */
+    public String expand(String noteContent, Long userId) throws ResultException {
+        String expand = null;
+        userTokenUsageService.checkTokenLimit(userId);
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = "http://127.0.0.1:8083/api/note/expand";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
+            requestBody.add("noteContent", noteContent);
+            if (userId != null) {
+                requestBody.add("userId", String.valueOf(userId));
+            }
+
+            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(requestBody, headers);
+
+            String response = restTemplate.postForObject(url, requestEntity, String.class);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(response);
+            checkPythonResponseCode(rootNode);
+            expand = rootNode.get("expand_content").asText();
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
+        } catch (ResultException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("调用外部API续写笔记失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
+        }
+        return expand;
+    }
+
+    /**
+     * 纠正语法
+     */
+    public String grammar(String noteContent, Long userId) throws ResultException {
+        String grammar = null;
+        userTokenUsageService.checkTokenLimit(userId);
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = "http://127.0.0.1:8083/api/note/grammar";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
+            requestBody.add("noteContent", noteContent);
+            if (userId != null) {
+                requestBody.add("userId", String.valueOf(userId));
+            }
+
+            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(requestBody, headers);
+
+            String response = restTemplate.postForObject(url, requestEntity, String.class);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(response);
+            checkPythonResponseCode(rootNode);
+            grammar = rootNode.get("grammar_content").asText();
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
+        } catch (ResultException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("调用外部API纠错笔记失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
+        }
+        return grammar;
+    }
+
+    /**
+     * 提取部分文本摘要
+     */
+    public String summaryText(String noteContent, Long userId) throws ResultException {
+        String summary = null;
+        userTokenUsageService.checkTokenLimit(userId);
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = "http://127.0.0.1:8083/api/note/summaryText";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
+            requestBody.add("noteContent", noteContent);
+            if (userId != null) {
+                requestBody.add("userId", String.valueOf(userId));
+            }
+
+            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(requestBody, headers);
+
+            String response = restTemplate.postForObject(url, requestEntity, String.class);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(response);
+            checkPythonResponseCode(rootNode);
+            summary = rootNode.get("summary_content").asText();
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
+        } catch (ResultException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("调用外部API提取文本摘要失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
+        }
+        return summary;
     }
 
 
@@ -496,7 +695,7 @@ public class NoteService {
     /**
      * 图片处理
      */
-    public String imgAnalysis(String imgUrl) throws ResultException {
+    public String imgAnalysis(String imgUrl, Long userId) throws ResultException {
         String polish = null;
         Pattern p = Pattern.compile("(?<=\\()https?://[^)]+(?=\\))");
         Matcher m = p.matcher(imgUrl);
@@ -505,6 +704,7 @@ public class NoteService {
             img = m.group(0); // ✅ 不含括号
         }
         // 调用外部API获取笔记摘要并打印
+        userTokenUsageService.checkTokenLimit(userId);
         try {
             RestTemplate restTemplate = new RestTemplate();
             String url = "http://127.0.0.1:8083/api/note/imgAnalysis";
@@ -516,6 +716,9 @@ public class NoteService {
             // 创建form-data请求参数
             MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
             requestBody.add("imgUrl", img);
+            if (userId != null) {
+                requestBody.add("userId", String.valueOf(userId));
+            }
 
             // 创建HTTP实体
             HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(requestBody, headers);
@@ -526,10 +729,74 @@ public class NoteService {
             // 解析JSON响应
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(response);
+            checkPythonResponseCode(rootNode);
             polish = rootNode.get("img_url").asText();
+            if (rootNode.has("tokens")) {
+                userTokenUsageService.addTokenUsage(userId, rootNode.get("tokens").asLong());
+            }
+        } catch (ResultException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("调用外部API获取图片信息失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
         }
         return polish;
+    }
+
+    /**
+     * 将笔记向量化存储
+     */
+    public void vectorize(Long id, Long userId) throws ResultException {
+        // 获取笔记信息
+        Note note = this.info(id, userId);
+
+        userTokenUsageService.checkTokenLimit(userId);
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            restTemplate.getMessageConverters().add(0, new org.springframework.http.converter.StringHttpMessageConverter(java.nio.charset.StandardCharsets.UTF_8));
+            String url = "http://127.0.0.1:8083/api/note/vectorize";
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.parseMediaType("application/json;charset=UTF-8"));
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("noteId", note.getId());
+            requestBody.put("userId", note.getUserId());
+            requestBody.put("title", note.getTitle());
+            requestBody.put("content", note.getContent());
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+
+            String response = restTemplate.postForObject(url, requestEntity, String.class);
+            logger.info("笔记向量化结果: {}", response);
+        } catch (Exception e) {
+            logger.error("调用外部API进行笔记向量化失败: {}", e.getMessage());
+            throw new ResultException(ResultStatus.AI_EXEC_FAIL);
+        }
+    }
+
+    /**
+     * 删除笔记的向量化存储
+     */
+    public void deleteVector(Long id, Long userId) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            restTemplate.getMessageConverters().add(0, new org.springframework.http.converter.StringHttpMessageConverter(java.nio.charset.StandardCharsets.UTF_8));
+            String url = "http://127.0.0.1:8083/api/note/delete_vector";
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.parseMediaType("application/json;charset=UTF-8"));
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("noteId", id);
+            requestBody.put("userId", userId);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+
+            String response = restTemplate.postForObject(url, requestEntity, String.class);
+            logger.info("笔记向量删除结果: {}", response);
+        } catch (Exception e) {
+            logger.error("调用外部API删除笔记向量化记录失败: {}", e.getMessage());
+        }
     }
 }
